@@ -1,3 +1,4 @@
+// lib/planDatabase.ts
 
 import { supabase } from './supabase';
 import { WorkoutPlan, PlanSession, WorkoutTemplate } from '@/types/workout';
@@ -47,7 +48,11 @@ export async function getTrainerClients(): Promise<ClientProfile[]> {
       throw error;
     }
 
-    return data.map(assignment => assignment.profiles as ClientProfile);
+    // Filter out assignments where the joined profile is null
+    // This ensures that only valid client profiles are returned.
+    return data
+      .filter(assignment => assignment.profiles !== null)
+      .map(assignment => assignment.profiles as ClientProfile);
   } catch (error) {
     console.error('Error in getTrainerClients:', error);
     throw error;
