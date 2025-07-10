@@ -1,3 +1,5 @@
+// app/create-plan.tsx
+
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -41,6 +43,7 @@ import {
   ClientProfile,
   WorkoutTemplateForPlan,
 } from '@/lib/planDatabase';
+import { supabase } from '@/lib/supabase'; // Import supabase
 
 type ScheduleType = 'weekly' | 'monthly' | 'custom';
 type DayOfWeek = 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday';
@@ -97,6 +100,7 @@ export default function CreatePlanScreen() {
   const [templates, setTemplates] = useState<WorkoutTemplateForPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [trainerProfileId, setTrainerProfileId] = useState<string | null>(null); // New state for trainer profile ID
 
   // Modal state
   const [showClientPicker, setShowClientPicker] = useState(false);
@@ -127,6 +131,26 @@ export default function CreatePlanScreen() {
       setLoading(true);
       console.log('🔄 Loading initial data...');
       
+      // Fetch current user's profile ID
+      const { data: user, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        Alert.alert('Authentication Error', 'You must be logged in to create a plan.');
+        router.replace('/(auth)/login');
+        return;
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (profileError || !profile) {
+        Alert.alert('Profile Error', 'Could not find your profile. Please ensure your profile is set up.');
+        return;
+      }
+      setTrainerProfileId(profile.id);
+
       // Load clients and templates in parallel
       const [clientsData, templatesData] = await Promise.all([
         getTrainerClients(),
@@ -253,6 +277,11 @@ export default function CreatePlanScreen() {
       return;
     }
 
+    if (!trainerProfileId) {
+      Alert.alert('Error', 'Trainer profile not loaded. Please try again.');
+      return;
+    }
+
     // Validate schedule has at least one workout
     let hasWorkouts = false;
     switch (scheduleType) {
@@ -274,11 +303,12 @@ export default function CreatePlanScreen() {
       return;
     }
 
-    try {
-      setSaving(true);
+    setSaving(true);
 
+    try {
       const planData = {
         client_id: selectedClient.id,
+        trainer_id: trainerProfileId, // Add the trainer_id here
         name: planName.trim(),
         description: planDescription.trim() || undefined,
         start_date: startDate.toISOString().split('T')[0],
